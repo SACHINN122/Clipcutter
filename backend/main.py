@@ -2,14 +2,24 @@
 ClipForge AI — FastAPI Backend Entry Point.
 """
 
+import os
 import sys
 from pathlib import Path
-from contextlib import asynccontextmanager
-import asyncio
-import sys
 
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+# --- Add NVIDIA CUDA DLLs to PATH (required on Windows for ctranslate2/faster-whisper) ---
+# Must happen before any imports that load CUDA (ctranslate2, faster_whisper)
+_venv_nvidia = Path(__file__).parent / "venv" / "Lib" / "site-packages" / "nvidia"
+if _venv_nvidia.exists() and sys.platform == "win32":
+    _dll_dirs = []
+    for subdir in _venv_nvidia.iterdir():
+        bin_dir = subdir / "bin"
+        if bin_dir.exists():
+            _dll_dirs.append(str(bin_dir))
+            os.add_dll_directory(str(bin_dir))
+    if _dll_dirs:
+        os.environ["PATH"] = ";".join(_dll_dirs) + ";" + os.environ.get("PATH", "")
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

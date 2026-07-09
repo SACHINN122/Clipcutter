@@ -1,10 +1,13 @@
 """
 YouTube Service — downloads YouTube videos via yt-dlp.
+Uses subprocess.run in a thread executor for Windows compatibility.
 """
 
 import re
 import asyncio
 import json
+import subprocess
+import functools
 from pathlib import Path
 from fastapi import HTTPException
 
@@ -29,26 +32,45 @@ def validate_youtube_url(url: str) -> str:
     return url
 
 
+def _get_video_info_sync(url: str) -> dict:
+    """Fetch video metadata without downloading (sync, runs in executor)."""
+    result = subprocess.run(
+        ["yt-dlp", "--dump-json", "--no-download", url],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to fetch video info: {result.stderr.strip()}")
+    return json.loads(result.stdout)
+
+
+def _download_video_sync(url: str, output_path: str) -> None:
+    """Download video using yt-dlp (sync, runs in executor)."""
+    result = subprocess.run(
+        [
+            "yt-dlp",
+            "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "--merge-output-format", "mp4",
+            "-o", output_path,
+            "--no-playlist",
+            "--no-warnings",
+            url,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,  # 10 minute timeout for large videos
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to download video: {result.stderr.strip()}")
+
+
 async def get_video_info(url: str) -> dict:
     """Fetch video metadata without downloading."""
-    proc = await asyncio.create_subprocess_exec(
-        "yt-dlp",
-        "--dump-json",
-        "--no-download",
-        url,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None, functools.partial(_get_video_info_sync, url)
     )
-    stdout, stderr = await proc.communicate()
-
-    if proc.returncode != 0:
-        error_msg = stderr.decode().strip()
-        raise HTTPException(
-            status_code=400,
-            detail=f"Failed to fetch video info: {error_msg}"
-        )
-
-    return json.loads(stdout.decode())
 
 
 async def download_video(url: str, job_id: str) -> tuple[Path, str]:
@@ -72,31 +94,13 @@ async def download_video(url: str, job_id: str) -> tuple[Path, str]:
 
     output_path = UPLOAD_DIR / f"{job_id}.mp4"
 
-    # Download best quality MP4 up to 1080p
-    proc = await asyncio.create_subprocess_exec(
-        "yt-dlp",
-        "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "--merge-output-format", "mp4",
-        "-o", str(output_path),
-        "--no-playlist",
-        "--no-warnings",
-        url,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    # Download in executor
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None, functools.partial(_download_video_sync, url, str(output_path))
     )
-    stdout, stderr = await proc.communicate()
-
-    if proc.returncode != 0:
-        error_msg = stderr.decode().strip()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to download video: {error_msg}"
-        )
 
     if not output_path.exists():
-        raise HTTPException(
-            status_code=500,
-            detail="Download completed but file not found."
-        )
+        raise RuntimeError("Download completed but file not found.")
 
     return output_path, title
