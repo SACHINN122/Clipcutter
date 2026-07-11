@@ -136,7 +136,14 @@ async def run_pipeline(job_id: str, whisper_model: WhisperModel):
         job["status"] = JobStatus.ANALYZING
         _update_step(job, "Finding Best Moments", "running", "AI is analyzing transcript...")
 
-        clip_timestamps = await detect_clips(transcript, job_id)
+        def update_analysis_retry(message: str):
+            _update_step(job, "Finding Best Moments", "running", message)
+
+        clip_timestamps = await detect_clips(
+            transcript,
+            job_id,
+            on_retry=update_analysis_retry,
+        )
 
         _update_step(
             job, "Finding Best Moments", "completed",

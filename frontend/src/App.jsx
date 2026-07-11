@@ -14,9 +14,11 @@ const SCREEN = {
 export default function App() {
   const [screen, setScreen] = useState(SCREEN.UPLOAD);
   const [jobId, setJobId] = useState(null);
+  const [notifyWhenComplete, setNotifyWhenComplete] = useState(false);
 
-  const handleProcessingStart = useCallback(async (newJobId) => {
+  const handleProcessingStart = useCallback(async (newJobId, options = {}) => {
     setJobId(newJobId);
+    setNotifyWhenComplete(Boolean(options.notifyWhenComplete));
     try {
       await startProcessing(newJobId);
       setScreen(SCREEN.PROCESSING);
@@ -37,6 +39,7 @@ export default function App() {
   const handleReset = useCallback(() => {
     setScreen(SCREEN.UPLOAD);
     setJobId(null);
+    setNotifyWhenComplete(false);
   }, []);
 
   return (
@@ -47,6 +50,7 @@ export default function App() {
       {screen === SCREEN.PROCESSING && (
         <ProcessingScreen
           jobId={jobId}
+          notifyWhenComplete={notifyWhenComplete}
           onComplete={handleComplete}
           onError={handleError}
         />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getClips, getDownloadUrl, getStaticUrl } from '../lib/api';
+import StudioHeader from './StudioHeader';
 import VideoPlayer from './VideoPlayer';
 
 function formatDuration(seconds) {
@@ -13,48 +14,61 @@ function ClipCard({ clip, jobId, onPlay }) {
   const downloadUrl = getDownloadUrl(jobId, clip.filename);
 
   return (
-    <div className="glass-card overflow-hidden group fade-in-up">
-      {/* Thumbnail */}
-      <div
-        className="relative aspect-video bg-black/50 cursor-pointer overflow-hidden"
+    <article className="clip-card fade-in-up">
+      <button
+        type="button"
+        className="group block w-full text-left"
         onClick={() => onPlay(clip)}
       >
-        <img
-          src={thumbUrl}
-          alt={clip.title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          onError={(e) => { e.target.style.display = 'none'; }}
-        />
-        {/* Play Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+        <div className="relative aspect-video overflow-hidden bg-black/40">
+          <img
+            src={thumbUrl}
+            alt={clip.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+
+          <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+            <span className="clip-chip">Clip {String(clip.id).padStart(2, '0')}</span>
+            <span className="clip-chip">{formatDuration(clip.duration)}</span>
+          </div>
+
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-white/15 backdrop-blur-md">
+              <svg className="ml-1 h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
           </div>
         </div>
-        {/* Duration Badge */}
-        <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium">
-          {formatDuration(clip.duration)}
+      </button>
+
+      <div className="space-y-4 p-4 sm:p-5">
+        <div>
+          <h3 className="line-clamp-2 text-lg font-semibold leading-snug">
+            {clip.title}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
+            Ready for preview, download, or a quick rewatch.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button className="btn-secondary flex-1 justify-center" onClick={() => onPlay(clip)}>
+            Preview
+          </button>
+          <a
+            href={downloadUrl}
+            download
+            className="btn-download flex-1 justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Download
+          </a>
         </div>
       </div>
-
-      {/* Info */}
-      <div className="p-4">
-        <h3 className="font-semibold text-sm mb-3 line-clamp-2 leading-snug">{clip.title}</h3>
-        <a
-          href={downloadUrl}
-          download
-          className="btn-download w-full"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          Download
-        </a>
-      </div>
-    </div>
+    </article>
   );
 }
 
@@ -67,68 +81,136 @@ export default function ResultsScreen({ jobId, onReset }) {
   useEffect(() => {
     if (!jobId) return;
     getClips(jobId)
-      .then((data) => { setClips(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+      .then((data) => {
+        setClips(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
   }, [jobId]);
+
+  const totalClips = clips.length;
+  const averageDuration = totalClips
+    ? clips.reduce((sum, clip) => sum + clip.duration, 0) / totalClips
+    : 0;
+  const longestClip = totalClips
+    ? Math.max(...clips.map((clip) => clip.duration))
+    : 0;
+  const jobLabel = jobId ? jobId.slice(0, 8).toUpperCase() : 'PENDING';
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
         <div className="bg-pattern" />
-        <div className="spinner spinner-lg" />
+        <div className="page-frame flex min-h-screen items-center justify-center">
+          <div className="surface-card flex flex-col items-center gap-4 px-8 py-10">
+            <div className="spinner spinner-lg" />
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Loading your generated clips...
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
         <div className="bg-pattern" />
-        <div className="text-center">
-          <p className="text-[var(--color-error)] mb-4">{error}</p>
-          <button className="btn-primary" onClick={onReset}>Try Again</button>
+        <div className="page-frame flex min-h-screen items-center justify-center">
+          <div className="surface-card max-w-xl p-6 text-center sm:p-8">
+            <p className="section-label">Something went wrong</p>
+            <h2 className="section-title mt-3 text-2xl sm:text-3xl">Could not load clips</h2>
+            <p className="section-copy mt-4">{error}</p>
+            <button className="btn-primary mt-6" onClick={onReset}>
+              Try again
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
       <div className="bg-pattern" />
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10 fade-in-up">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--color-success)]/10 border border-[var(--color-success)]/20 text-[var(--color-success)] text-sm font-medium mb-4">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-            {clips.length} clips generated
-          </div>
-          <h2 className="text-3xl font-bold mb-2">Your Clips Are Ready</h2>
-          <p className="text-[var(--color-text-secondary)]">Preview and download your AI-generated short clips</p>
-        </div>
 
-        {/* Clips Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
-          {clips.map((clip, i) => (
-            <div key={clip.id} style={{ animationDelay: `${i * 0.08}s` }}>
-              <ClipCard clip={clip} jobId={jobId} onPlay={setPlayingClip} />
+      <div className="page-frame flex min-h-screen flex-col gap-5">
+        <StudioHeader
+          eyebrow="ClipForge AI"
+          statusLabel="Processing complete"
+          statusValue={`${totalClips} clips ready`}
+          rightSlot={(
+            <button className="btn-secondary" onClick={onReset}>
+              New job
+            </button>
+          )}
+        />
+
+        <main className="space-y-6">
+          <section className="surface-card p-6 sm:p-7 lg:p-8 fade-in-up">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="section-label">Results</p>
+                <h1 className="section-title mt-3 text-3xl sm:text-4xl">
+                  Your clips are ready.
+                </h1>
+                <p className="section-copy mt-4 max-w-2xl">
+                  Preview the moments the AI flagged, then download the ones you want to keep.
+                  You can start another pass anytime.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <span className="control-chip">Job {jobLabel}</span>
+              </div>
             </div>
-          ))}
-        </div>
+          </section>
 
-        {/* Generate Again */}
-        <div className="text-center fade-in-up">
-          <button className="btn-secondary text-base px-6 py-3" onClick={onReset}>
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
-            </svg>
-            Generate Again
-          </button>
-        </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="stat-card">
+              <p className="stat-label">Clips ready</p>
+              <p className="stat-value">{totalClips}</p>
+              <p className="stat-note">The AI selected the strongest short-form moments from the source video.</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Average length</p>
+              <p className="stat-value">{totalClips ? formatDuration(averageDuration) : '0:00'}</p>
+              <p className="stat-note">A quick pulse on how long the final clips are running.</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Longest clip</p>
+              <p className="stat-value">{totalClips ? formatDuration(longestClip) : '0:00'}</p>
+              <p className="stat-note">Useful when you want to compare the broader moments against the tightest cuts.</p>
+            </div>
+          </div>
+
+          {clips.length ? (
+            <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {clips.map((clip, i) => (
+                <div key={clip.id} style={{ animationDelay: `${i * 0.08}s` }}>
+                  <ClipCard clip={clip} jobId={jobId} onPlay={setPlayingClip} />
+                </div>
+              ))}
+            </section>
+          ) : (
+            <section className="surface-card p-8 text-center">
+              <p className="section-label">No clips returned</p>
+              <h2 className="section-title mt-3 text-2xl">The model did not surface any usable moments.</h2>
+              <p className="section-copy mt-4 max-w-2xl mx-auto">
+                Try a longer or more speech-heavy video, or generate again with a different source.
+              </p>
+              <button className="btn-primary mt-6" onClick={onReset}>
+                Start new job
+              </button>
+            </section>
+          )}
+        </main>
       </div>
 
-      {/* Video Player Modal */}
       {playingClip && (
         <VideoPlayer
           src={playingClip.video_url}

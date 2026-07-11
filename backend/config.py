@@ -30,6 +30,12 @@ WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
 # --- Gemini Settings ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.5-flash"
+# Retry temporary Gemini service failures (for example HTTP 503) before
+# failing an otherwise valid processing job. These remain configurable so a
+# local deployment can tune them for its quota and latency requirements.
+GEMINI_MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "4"))
+GEMINI_RETRY_BASE_SECONDS = float(os.getenv("GEMINI_RETRY_BASE_SECONDS", "2"))
+GEMINI_RETRY_MAX_SECONDS = float(os.getenv("GEMINI_RETRY_MAX_SECONDS", "30"))
 
 # --- Clip Constraints ---
 MIN_CLIP_DURATION = 15   # seconds

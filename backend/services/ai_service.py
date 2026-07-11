@@ -2,12 +2,23 @@
 AI Service — uses Gemini 2.5 Flash to detect interesting clip moments from transcript.
 """
 
+import asyncio
 import json
 from pathlib import Path
+from collections.abc import Callable
 from google import genai
 from google.genai.types import GenerateContentConfig
 
-from config import GEMINI_API_KEY, GEMINI_MODEL, TRANSCRIPT_DIR, MIN_CLIP_DURATION, MAX_CLIP_DURATION
+from config import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    GEMINI_MAX_RETRIES,
+    GEMINI_RETRY_BASE_SECONDS,
+    GEMINI_RETRY_MAX_SECONDS,
+    TRANSCRIPT_DIR,
+    MIN_CLIP_DURATION,
+    MAX_CLIP_DURATION,
+)
 from models.schemas import ClipTimestamp
 
 
@@ -70,7 +81,35 @@ TRANSCRIPT WITH TIMESTAMPS:
 Return a JSON array of the best clip moments. Each clip should have: title, start (seconds), end (seconds), reason."""
 
 
-async def detect_clips(transcript: dict, job_id: str) -> list[ClipTimestamp]:
+def _is_transient_gemini_error(error: Exception) -> bool:
+    """Return whether a Gemini error is worth retrying automatically."""
+    # SDK error shapes can differ across versions, so inspect both the
+    # structured code and the message. Only known temporary failures retry.
+    code = str(getattr(error, "code", "")).lower()
+    message = str(error).lower()
+    transient_markers = ("429", "503", "resource_exhausted", "unavailable")
+    return any(marker in code or marker in message for marker in transient_markers)
+
+
+def _request_clips_sync(client: genai.Client, user_prompt: str, system_instruction: str):
+    """Make one synchronous Gemini request; called outside the event loop."""
+    return client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=user_prompt,
+        config=GenerateContentConfig(
+            system_instruction=system_instruction,
+            response_mime_type="application/json",
+            response_schema=list[ClipTimestamp],
+            temperature=0.7,
+        ),
+    )
+
+
+async def detect_clips(
+    transcript: dict,
+    job_id: str,
+    on_retry: Callable[[str], None] | None = None,
+) -> list[ClipTimestamp]:
     """
     Send transcript to Gemini 2.5 Flash and get back interesting clip timestamps.
     Uses structured output with Pydantic schema.
@@ -84,16 +123,29 @@ async def detect_clips(transcript: dict, job_id: str) -> list[ClipTimestamp]:
 
     user_prompt = _build_user_prompt(transcript)
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=user_prompt,
-        config=GenerateContentConfig(
-            system_instruction=system_instruction,
-            response_mime_type="application/json",
-            response_schema=list[ClipTimestamp],
-            temperature=0.7,
-        ),
-    )
+    for retry_number in range(GEMINI_MAX_RETRIES + 1):
+        try:
+            # The SDK call is synchronous. Move it to a worker so status
+            # polling stays responsive while the request or a retry is pending.
+            response = await asyncio.to_thread(
+                _request_clips_sync, client, user_prompt, system_instruction
+            )
+            break
+        except Exception as error:
+            if not _is_transient_gemini_error(error) or retry_number >= GEMINI_MAX_RETRIES:
+                raise
+
+            delay = min(
+                GEMINI_RETRY_BASE_SECONDS * (2 ** retry_number),
+                GEMINI_RETRY_MAX_SECONDS,
+            )
+            if on_retry:
+                on_retry(
+                    "AI service is busy. "
+                    f"Retrying in {delay:g}s "
+                    f"({retry_number + 1}/{GEMINI_MAX_RETRIES})..."
+                )
+            await asyncio.sleep(delay)
 
     clips = response.parsed
 
