@@ -1,4 +1,4 @@
-# ClipForge AI 🎬
+# Clipcutter AI 🎬
 
 ClipForge AI is a modular, local-first web application that automatically converts long-form videos (or YouTube URLs) into highly engaging, short-form clips using AI. It handles the entire pipeline: downloading, audio extraction, transcription, intelligent moment detection, and video clipping—all tailored to run locally with GPU acceleration.
 
