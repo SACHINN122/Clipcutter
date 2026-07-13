@@ -1,6 +1,6 @@
-# ClipForge AI
+# Clipcutter AI 🎬
 
-ClipForge is a local-first AI clip studio for turning long-form video into
+Clipcutter is a local-first AI clip studio for turning long-form video into
 social-ready short clips. Add a video file or YouTube URL, then let the
 pipeline transcribe the source, identify high-retention moments, and export
 the resulting clips.
