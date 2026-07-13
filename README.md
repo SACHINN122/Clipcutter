@@ -1,71 +1,109 @@
-# ClipForge AI 🎬
+# ClipForge AI
 
-ClipForge AI is a modular, local-first web application that automatically converts long-form videos (or YouTube URLs) into highly engaging, short-form clips using AI. It handles the entire pipeline: downloading, audio extraction, transcription, intelligent moment detection, and video clipping—all tailored to run locally with GPU acceleration.
+ClipForge is a local-first AI clip studio for turning long-form video into
+social-ready short clips. Add a video file or YouTube URL, then let the
+pipeline transcribe the source, identify high-retention moments, and export
+the resulting clips.
 
-## 🚀 Features
+## What it does
 
-- **Dual Ingestion**: Upload local video files (MP4, MKV, MOV, AVI) or simply provide a YouTube URL.
-- **Fast, Local Transcription**: Uses `faster-whisper` (Small model) running on CUDA for high-speed, local speech-to-text with word-level timestamps.
-- **AI Highlight Detection**: Leverages Gemini 2.5 Flash to strategically identify the most engaging, viral-worthy moments (hooks, storytelling, emotional beats).
-- **Automated Clipping**: Uses FFmpeg stream copying (lossless and instant) to slice the long-form video into perfectly timed shorts.
-- **Modern UI**: A beautifully crafted, responsive React frontend utilizing TailwindCSS, glassmorphic elements, and smooth state transitions.
+- Accepts MP4, MOV, MKV, and AVI uploads, plus YouTube URLs.
+- Transcribes speech locally with Faster Whisper and word-level timestamps.
+- Uses Gemini to find strong hooks, stories, insights, and emotional beats.
+- Cuts selected moments with FFmpeg and makes them available to preview or download.
+- Provides a responsive React dashboard for creating and tracking jobs.
 
-## 🛠️ Technology Stack
+## Stack
 
-- **Frontend**: React (Vite), TailwindCSS v4, Axios
-- **Backend**: FastAPI, Uvicorn, Python 3.10+
-- **AI & Processing**: Faster Whisper (CTranslate2), Google GenAI SDK (Gemini), FFmpeg, yt-dlp
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, Vite, Tailwind CSS |
+| Backend | FastAPI, Uvicorn, Pydantic |
+| Transcription | Faster Whisper / CTranslate2 |
+| AI analysis | Google GenAI (Gemini) |
+| Video processing | FFmpeg, yt-dlp |
 
-## 📦 Prerequisites
+## Requirements
 
-1. **Python 3.10+** (with pip)
-2. **Node.js** (v18+ recommended)
-3. **FFmpeg**: Must be installed and accessible in your system's PATH.
-4. **NVIDIA GPU** (Optional but highly recommended): CUDA 12 toolkit installed for faster-whisper acceleration.
+- Python 3.10 or later
+- Node.js 18 or later
+- FFmpeg available on your system `PATH`
+- A Gemini API key
+- An NVIDIA GPU with CUDA is optional, but recommended for transcription speed
 
-## ⚙️ Setup & Installation
+## Quick start
 
-### 1. Clone the repository
-```bash
-git clone <your-repo-url>
-cd clipcutter
-```
+Clone the repository and configure the backend:
 
-### 2. Backend Setup
-```bash
+```powershell
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# If you have an NVIDIA GPU, install CUDA dependencies for faster-whisper
-pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ```
 
-Create a `.env` file in the `backend` directory:
+Create a `.env` file in the project root (or configure the equivalent runtime
+environment variable):
+
 ```env
-GEMINI_API_KEY="your-gemini-api-key-here"
+GEMINI_API_KEY=your_api_key_here
 ```
 
-Start the backend server:
-```bash
+Start the API in one terminal:
+
+```powershell
+cd backend
 python main.py
 ```
 
-### 3. Frontend Setup
-```bash
+Install and start the frontend in another terminal:
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-## 🎮 Usage
+Open http://127.0.0.1:5173. The API runs at http://127.0.0.1:8000 and its
+interactive documentation is available at http://127.0.0.1:8000/docs.
 
-1. Open your browser and navigate to `http://localhost:5173`.
-2. Choose either to **Upload a File** or paste a **YouTube URL**.
-3. Click **Generate Clips**.
-4. The pipeline will automatically download, transcribe, analyze, and clip the video.
-5. Once complete, preview and download your AI-curated shorts!
+## How the pipeline works
 
-## 📜 License
-This project is for personal MVP use.
+1. Create a job by uploading a file or supplying a YouTube link.
+2. Start processing from the dashboard.
+3. The source is downloaded if needed, audio is extracted, and speech is transcribed.
+4. Gemini ranks clip-worthy moments from the transcript.
+5. FFmpeg creates the clips and thumbnails.
+6. Preview or download the exported clips from the results screen.
+
+## API overview
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/upload` | Upload a video and create a job |
+| `POST` | `/api/youtube` | Create a job from a YouTube URL |
+| `POST` | `/api/generate/{job_id}` | Start the processing pipeline |
+| `GET` | `/api/status/{job_id}` | Read live job and step status |
+| `GET` | `/api/clips/{job_id}` | List completed clips |
+| `GET` | `/api/download/{job_id}/{filename}` | Download an exported clip |
+
+## Project structure
+
+```text
+backend/              FastAPI service and processing pipeline
+  routes/             HTTP endpoints
+  services/           Upload, YouTube, transcription, AI, and clip services
+  models/             API schemas
+frontend/             React dashboard
+  src/components/     Upload, processing, results, and player UI
+uploads/              Local source uploads (runtime data)
+clips/                Generated clips (runtime data)
+transcripts/          Generated transcripts (runtime data)
+```
+
+## Notes
+
+- Jobs are currently held in application memory, so restarting the backend
+  clears job state.
+- Processing time varies with source duration, hardware, and model/API latency.
+- This project is intended for local development and personal MVP use.
