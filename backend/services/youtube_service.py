@@ -15,8 +15,8 @@ from config import UPLOAD_DIR, MAX_YOUTUBE_DURATION
 
 
 YOUTUBE_URL_PATTERN = re.compile(
-    r"(https?://)?(www\.)?"
-    r"(youtube\.com/(watch\?v=|shorts/|embed/|v/)|youtu\.be/)"
+    r"(https?://)?(www\.|m\.)?"
+    r"(youtube\.com/(watch\?v=|shorts/|embed/|live/|v/)|youtu\.be/)"
     r"[\w\-]+"
 )
 
@@ -32,37 +32,73 @@ def validate_youtube_url(url: str) -> str:
     return url
 
 
+def _yt_dlp_strategies() -> list[list[str]]:
+    """
+    Ordered list of yt-dlp extra-argument sets to try per request.
+
+    YouTube increasingly throws a "Sign in to confirm you're not a bot" wall,
+    which makes a plain download fail. We work around it by trying, in order:
+      1. The default client (fast path — works for most videos).
+      2. Browser cookies from a logged-in session (best: full web client + auth).
+      3. Alternate player clients (tv / web_safari / ios) that usually bypass
+         the bot wall without cookies.
+    The first strategy that succeeds wins; if all fail we surface the last error.
+    """
+    return [
+        [],  # default client
+        ["--cookies-from-browser", "edge"],
+        ["--cookies-from-browser", "chrome"],
+        ["--cookies-from-browser", "brave"],
+        ["--extractor-args", "youtube:player_client=tv,web_safari,ios"],
+        ["--extractor-args", "youtube:player_client=web_safari"],
+    ]
+
+
 def _get_video_info_sync(url: str) -> dict:
     """Fetch video metadata without downloading (sync, runs in executor)."""
-    result = subprocess.run(
-        ["yt-dlp", "--dump-json", "--no-download", url],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to fetch video info: {result.stderr.strip()}")
-    return json.loads(result.stdout)
+    last_err = "No yt-dlp strategies succeeded"
+    for extra in _yt_dlp_strategies():
+        try:
+            result = subprocess.run(
+                ["yt-dlp", *extra, "--dump-json", "--no-download", "--no-warnings", url],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return json.loads(result.stdout)
+            last_err = result.stderr.strip()
+        except Exception as exc:  # noqa: BLE001 - fall through to next strategy
+            last_err = str(exc)
+    raise RuntimeError(f"Failed to fetch video info: {last_err}")
 
 
 def _download_video_sync(url: str, output_path: str) -> None:
     """Download video using yt-dlp (sync, runs in executor)."""
-    result = subprocess.run(
-        [
-            "yt-dlp",
-            "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "--merge-output-format", "mp4",
-            "-o", output_path,
-            "--no-playlist",
-            "--no-warnings",
-            url,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=600,  # 10 minute timeout for large videos
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Failed to download video: {result.stderr.strip()}")
+    last_err = "No yt-dlp strategies succeeded"
+    for extra in _yt_dlp_strategies():
+        try:
+            result = subprocess.run(
+                [
+                    "yt-dlp",
+                    *extra,
+                    "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                    "--merge-output-format", "mp4",
+                    "-o", output_path,
+                    "--no-playlist",
+                    "--no-warnings",
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=600,  # 10 minute timeout for large videos
+            )
+            if result.returncode == 0:
+                return
+            last_err = result.stderr.strip()
+        except Exception as exc:  # noqa: BLE001 - fall through to next strategy
+            last_err = str(exc)
+    raise RuntimeError(f"Failed to download video: {last_err}")
 
 
 async def get_video_info(url: str) -> dict:
