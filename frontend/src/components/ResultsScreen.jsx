@@ -1,75 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getClips, getDownloadUrl, getStaticUrl } from '../lib/api';
-import StudioHeader from './StudioHeader';
 import VideoPlayer from './VideoPlayer';
 
-function formatDuration(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
+const icon = (name) => {
+  const paths = {
+    search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>, download: <><path d="M12 3v11" /><path d="m8 10 4 4 4-4" /><path d="M4 20h16" /></>, plus: <path d="M12 5v14M5 12h14" />, more: <path d="M5 12h.01M12 12h.01M19 12h.01" />, play: <path d="m9 7 7 5-7 5V7Z" />, spark: <path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" />, filter: <path d="M4 6h16M7 12h10m-7 6h4" />,
+  };
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+};
 
-function ClipCard({ clip, jobId, onPlay }) {
-  const thumbUrl = getStaticUrl(clip.thumbnail_url);
-  const downloadUrl = getDownloadUrl(jobId, clip.filename);
+function formatDuration(seconds) { const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60); return `${m}:${s.toString().padStart(2, '0')}`; }
 
-  return (
-    <article className="clip-card fade-in-up">
-      <button
-        type="button"
-        className="group block w-full text-left"
-        onClick={() => onPlay(clip)}
-      >
-        <div className="relative aspect-video overflow-hidden bg-black/40">
-          <img
-            src={thumbUrl}
-            alt={clip.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
-
-          <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-            <span className="clip-chip">Clip {String(clip.id).padStart(2, '0')}</span>
-            <span className="clip-chip">{formatDuration(clip.duration)}</span>
-          </div>
-
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-white/15 backdrop-blur-md">
-              <svg className="ml-1 h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </button>
-
-      <div className="space-y-4 p-4 sm:p-5">
-        <div>
-          <h3 className="line-clamp-2 text-lg font-semibold leading-snug">
-            {clip.title}
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-            Ready for preview, download, or a quick rewatch.
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          <button className="btn-secondary flex-1 justify-center" onClick={() => onPlay(clip)}>
-            Preview
-          </button>
-          <a
-            href={downloadUrl}
-            download
-            className="btn-download flex-1 justify-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            Download
-          </a>
-        </div>
-      </div>
-    </article>
-  );
+function ClipCard({ clip, jobId, onPlay, onRename, onDelete }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return <article className="result-clip-card">
+    <button className="result-thumb" onClick={() => onPlay(clip)} type="button">
+      <img src={getStaticUrl(clip.thumbnail_url)} alt={clip.title} onError={(event) => { event.currentTarget.style.opacity = 0; }} />
+      <div className="result-thumb-shade" />
+      <span className="result-duration">{formatDuration(clip.duration)}</span>
+      <span className="result-selected"><i /> AI selected</span>
+      <span className="result-play">{icon('play')}</span>
+    </button>
+    <div className="result-card-copy">
+      <div className="result-card-title"><h3 title={clip.title}>{clip.title}</h3><button aria-label="Clip actions" className="result-more" onClick={() => setMenuOpen((open) => !open)}>{icon('more')}</button></div>
+      <p className="result-preview">AI selected this moment from your source video.</p>
+      <div className="result-tags"><span>✦ AI-picked moment</span><span>⏱ {formatDuration(clip.duration)}</span></div>
+      <div className="result-card-actions"><button onClick={() => onPlay(clip)}>Preview</button><a href={getDownloadUrl(jobId, clip.filename)} download>{icon('download')} Download</a></div>
+      {menuOpen && <div className="result-menu"><button onClick={() => { const title = window.prompt('Rename clip', clip.title); if (title?.trim()) onRename(clip.id, title.trim()); setMenuOpen(false); }}>Rename</button><button disabled title="Transcript text is not provided by the current API">Copy transcript</button><button className="danger" onClick={() => { onDelete(clip.id); setMenuOpen(false); }}>Remove from view</button></div>}
+    </div>
+  </article>;
 }
 
 export default function ResultsScreen({ jobId, onReset }) {
@@ -77,147 +36,24 @@ export default function ResultsScreen({ jobId, onReset }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [playingClip, setPlayingClip] = useState(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
+  const [durationFilter, setDurationFilter] = useState('all');
 
-  useEffect(() => {
-    if (!jobId) return;
-    getClips(jobId)
-      .then((data) => {
-        setClips(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [jobId]);
+  useEffect(() => { if (!jobId) return; getClips(jobId).then((data) => { setClips(data); setLoading(false); }).catch((err) => { setError(err.message); setLoading(false); }); }, [jobId]);
+  const totalRuntime = clips.reduce((sum, clip) => sum + clip.duration, 0);
+  const visibleClips = useMemo(() => clips.filter((clip) => clip.title.toLowerCase().includes(query.toLowerCase())).filter((clip) => durationFilter === 'all' || (durationFilter === 'short' ? clip.duration < 30 : clip.duration >= 30)).sort((a, b) => sort === 'shortest' ? a.duration - b.duration : sort === 'longest' ? b.duration - a.duration : b.id - a.id), [clips, query, sort, durationFilter]);
+  const renameClip = (id, title) => setClips((current) => current.map((clip) => clip.id === id ? { ...clip, title } : clip));
+  const removeClip = (id) => setClips((current) => current.filter((clip) => clip.id !== id));
+  const downloadAll = () => clips.forEach((clip, index) => setTimeout(() => { const link = document.createElement('a'); link.href = getDownloadUrl(jobId, clip.filename); link.download = clip.filename; document.body.appendChild(link); link.click(); link.remove(); }, index * 200));
 
-  const totalClips = clips.length;
-  const averageDuration = totalClips
-    ? clips.reduce((sum, clip) => sum + clip.duration, 0) / totalClips
-    : 0;
-  const longestClip = totalClips
-    ? Math.max(...clips.map((clip) => clip.duration))
-    : 0;
-  const jobLabel = jobId ? jobId.slice(0, 8).toUpperCase() : 'PENDING';
+  if (loading) return <div className="results-shell results-centered"><div className="spinner spinner-lg" /><p>Loading your clips</p></div>;
+  if (error) return <div className="results-shell results-centered"><p className="results-kicker">Something went wrong</p><h1>Could not load your clips</h1><p>{error}</p><button className="results-primary" onClick={onReset}>Try again</button></div>;
 
-  if (loading) {
-    return (
-      <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
-        <div className="bg-pattern" />
-        <div className="page-frame flex min-h-screen items-center justify-center">
-          <div className="surface-card flex flex-col items-center gap-4 px-8 py-10">
-            <div className="spinner spinner-lg" />
-            <p className="text-sm text-[var(--color-text-secondary)]">
-              Loading your generated clips...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
-        <div className="bg-pattern" />
-        <div className="page-frame flex min-h-screen items-center justify-center">
-          <div className="surface-card max-w-xl p-6 text-center sm:p-8">
-            <p className="section-label">Something went wrong</p>
-            <h2 className="section-title mt-3 text-2xl sm:text-3xl">Could not load clips</h2>
-            <p className="section-copy mt-4">{error}</p>
-            <button className="btn-primary mt-6" onClick={onReset}>
-              Try again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
-      <div className="bg-pattern" />
-
-      <div className="page-frame flex min-h-screen flex-col gap-5">
-        <StudioHeader
-          eyebrow="ClipForge AI"
-          statusLabel="Processing complete"
-          statusValue={`${totalClips} clips ready`}
-          rightSlot={(
-            <button className="btn-secondary" onClick={onReset}>
-              New job
-            </button>
-          )}
-        />
-
-        <main className="space-y-6">
-          <section className="surface-card p-6 sm:p-7 lg:p-8 fade-in-up">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="section-label">Results</p>
-                <h1 className="section-title mt-3 text-3xl sm:text-4xl">
-                  Your clips are ready.
-                </h1>
-                <p className="section-copy mt-4 max-w-2xl">
-                  Preview the moments the AI flagged, then download the ones you want to keep.
-                  You can start another pass anytime.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <span className="control-chip">Job {jobLabel}</span>
-              </div>
-            </div>
-          </section>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="stat-card">
-              <p className="stat-label">Clips ready</p>
-              <p className="stat-value">{totalClips}</p>
-              <p className="stat-note">The AI selected the strongest short-form moments from the source video.</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-label">Average length</p>
-              <p className="stat-value">{totalClips ? formatDuration(averageDuration) : '0:00'}</p>
-              <p className="stat-note">A quick pulse on how long the final clips are running.</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-label">Longest clip</p>
-              <p className="stat-value">{totalClips ? formatDuration(longestClip) : '0:00'}</p>
-              <p className="stat-note">Useful when you want to compare the broader moments against the tightest cuts.</p>
-            </div>
-          </div>
-
-          {clips.length ? (
-            <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {clips.map((clip, i) => (
-                <div key={clip.id} style={{ animationDelay: `${i * 0.08}s` }}>
-                  <ClipCard clip={clip} jobId={jobId} onPlay={setPlayingClip} />
-                </div>
-              ))}
-            </section>
-          ) : (
-            <section className="surface-card p-8 text-center">
-              <p className="section-label">No clips returned</p>
-              <h2 className="section-title mt-3 text-2xl">The model did not surface any usable moments.</h2>
-              <p className="section-copy mt-4 max-w-2xl mx-auto">
-                Try a longer or more speech-heavy video, or generate again with a different source.
-              </p>
-              <button className="btn-primary mt-6" onClick={onReset}>
-                Start new job
-              </button>
-            </section>
-          )}
-        </main>
-      </div>
-
-      {playingClip && (
-        <VideoPlayer
-          src={playingClip.video_url}
-          title={playingClip.title}
-          onClose={() => setPlayingClip(null)}
-        />
-      )}
-    </div>
-  );
+  return <div className="results-shell"><div className="results-aura" /><div className="results-frame">
+    <header className="results-header"><div><p className="results-kicker">Results</p><h1>Your clips are ready <span>🎉</span></h1><p>AI found the highest-performing moments from your video.</p></div><div className="results-header-actions"><button className="results-quiet" onClick={downloadAll}>{icon('download')} Download all</button><button className="results-quiet" onClick={downloadAll}>Export</button><button className="results-primary" onClick={onReset}>{icon('plus')} New job</button></div></header>
+    <section className="results-summary"><div><strong>{clips.length}</strong><span>Clips</span></div><div><strong>{formatDuration(totalRuntime)}</strong><span>Total runtime</span></div><div><strong>Completed</strong><span>Processing status</span></div><div><strong>AI-selected</strong><span>Clip quality</span></div></section>
+    <section className="results-toolbar"><label className="results-search">{icon('search')}<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search clips" /></label><div className="results-select-wrap">{icon('filter')}<select value={sort} onChange={(event) => setSort(event.target.value)}><option value="newest">Newest</option><option value="shortest">Shortest</option><option value="longest">Longest</option><option value="score" disabled>Highest score — unavailable</option></select></div><div className="results-filter"><span>Duration</span><button className={durationFilter === 'all' ? 'active' : ''} onClick={() => setDurationFilter('all')}>All</button><button className={durationFilter === 'short' ? 'active' : ''} onClick={() => setDurationFilter('short')}>Under 30s</button><button className={durationFilter === 'long' ? 'active' : ''} onClick={() => setDurationFilter('long')}>30s+</button></div></section>
+    {visibleClips.length ? <section className="results-grid">{visibleClips.map((clip) => <ClipCard key={clip.id} clip={clip} jobId={jobId} onPlay={setPlayingClip} onRename={renameClip} onDelete={removeClip} />)}</section> : <section className="results-empty"><div>{icon('spark')}</div><h2>Generate your first clips.</h2><p>{clips.length ? 'No clips match those filters.' : 'Your best moments will appear here once processing finishes.'}</p>{clips.length ? <button onClick={() => { setQuery(''); setDurationFilter('all'); }}>Clear filters</button> : <button onClick={onReset}>Start a new job</button>}</section>}
+  </div>{playingClip && <VideoPlayer clip={playingClip} clips={clips} jobId={jobId} onSelect={setPlayingClip} onClose={() => setPlayingClip(null)} onRename={renameClip} onDelete={(id) => { removeClip(id); setPlayingClip(null); }} />}</div>;
 }

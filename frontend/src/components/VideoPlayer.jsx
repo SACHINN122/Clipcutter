@@ -1,73 +1,20 @@
-import { useState } from 'react';
-import { getStaticUrl } from '../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { getDownloadUrl, getStaticUrl } from '../lib/api';
 
-export default function VideoPlayer({ src, title, onClose }) {
-  const [loaded, setLoaded] = useState(false);
-  const videoUrl = src?.startsWith('http') ? src : getStaticUrl(src);
+function Icon({ name }) { const paths = { close:<path d="m6 6 12 12M18 6 6 18" />, download:<><path d="M12 3v11" /><path d="m8 10 4 4 4-4" /><path d="M4 20h16" /></>, expand:<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5" />, share:<><path d="M18 8a3 3 0 1 0-2.8-4A3 3 0 0 0 18 8ZM6 15a3 3 0 1 0 2.8 4A3 3 0 0 0 6 15ZM17.5 8.5l-11 6" /></>, copy:<path d="M9 8h10v12H9zM5 16H4V4h10v1" />, sparkle:<path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" /> }; return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>; }
+const duration = (value) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
 
-  return (
-    <div className="modal-shell" onClick={onClose}>
-      <div className="modal-panel grid max-h-[88vh] lg:grid-cols-[minmax(0,1.7fr)_340px]" onClick={(e) => e.stopPropagation()}>
-        <div className="relative bg-black">
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/70 backdrop-blur-md transition-colors hover:text-white"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <div className="relative flex min-h-[320px] items-center justify-center bg-black">
-            {!loaded && (
-              <div className="absolute inset-0 grid place-items-center">
-                <div className="spinner spinner-lg" />
-              </div>
-            )}
-            <video
-              src={videoUrl}
-              controls
-              autoPlay
-              className="max-h-[88vh] w-full object-contain"
-              onLoadedData={() => setLoaded(true)}
-            />
-          </div>
-        </div>
-
-        <aside className="modal-info flex flex-col justify-between gap-6 p-5 sm:p-6">
-          <div>
-            <p className="section-label">Clip preview</p>
-            {title && (
-              <h3 className="section-title mt-3 text-2xl leading-tight">
-                {title}
-              </h3>
-            )}
-            <p className="section-copy mt-4 text-sm">
-              Watch the selected moment, then close the viewer to keep downloading or move to
-              the next clip.
-            </p>
-
-            <div className="mt-6 grid gap-3">
-              <div className="stat-card">
-                <p className="stat-label">Playback</p>
-                <p className="stat-value">Fullscreen ready</p>
-                <p className="stat-note">Use the native controls, or expand the video in your browser.</p>
-              </div>
-              <div className="stat-card">
-                <p className="stat-label">Tip</p>
-                <p className="stat-value">Keep reviewing</p>
-                <p className="stat-note">Close the player when you want to jump back to the clip grid.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button className="btn-secondary flex-1 justify-center" onClick={onClose}>
-              Close
-            </button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
+export default function VideoPlayer({ clip, clips, jobId, onSelect, onClose, onRename, onDelete }) {
+  const videoRef = useRef(null); const [time, setTime] = useState(0); const [loaded, setLoaded] = useState(false);
+  const index = clips.findIndex((item) => item.id === clip.id); const previous = clips[index - 1]; const next = clips[index + 1];
+  useEffect(() => { const onKey = (event) => { if (event.key === 'Escape') onClose(); if (event.key === 'ArrowLeft' && previous) onSelect(previous); if (event.key === 'ArrowRight' && next) onSelect(next); }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [previous, next, onClose, onSelect]);
+  useEffect(() => { setTime(0); setLoaded(false); }, [clip.id]);
+  const share = async () => { try { await navigator.clipboard.writeText(getStaticUrl(clip.video_url)); } catch {} };
+  return <div className="preview-overlay" onMouseDown={onClose}><section className="preview-workspace" onMouseDown={(event) => event.stopPropagation()}>
+    <header className="preview-header"><div><span>Clip {String(clip.id).padStart(2, '0')}</span><h2>{clip.title}</h2></div><div><a href={getDownloadUrl(jobId, clip.filename)} download aria-label="Download"><Icon name="download" /></a><button aria-label="Copy share link" onClick={share}><Icon name="share" /></button><button aria-label="Fullscreen" onClick={() => videoRef.current?.requestFullscreen?.()}><Icon name="expand" /></button><button aria-label="Close preview" onClick={onClose}><Icon name="close" /></button></div></header>
+    <div className="preview-layout"><main className="preview-stage"><div className="preview-video-wrap">{!loaded && <div className="preview-loader"><div className="spinner spinner-lg" /></div>}<video ref={videoRef} src={getStaticUrl(clip.video_url)} controls autoPlay className={loaded ? 'loaded' : ''} onLoadedData={() => setLoaded(true)} onTimeUpdate={(event) => setTime(event.currentTarget.currentTime)} /><div className="preview-video-meta"><span>{duration(time)} / {duration(clip.duration)}</span><span>⏱ {duration(clip.duration)}</span><span>✦ AI selected</span></div></div>
+      <div className="preview-transcript"><div><p>Transcript</p><span>Transcript text is not available from the current API.</span></div><div className="preview-transcript-empty">Connect transcript data to enable live sentence highlighting and auto-scroll.</div></div>
+    </main><aside className="preview-sidebar"><div className="preview-insights"><p>AI clip insights</p><div><article><span>🔥 Hook strength</span><strong>Not available</strong></article><article><span>⭐ AI quality score</span><strong>Not available</strong></article><article><span>🎯 Engagement prediction</span><strong>AI selected</strong></article><article><span>⏱ Clip length</span><strong>{duration(clip.duration)}</strong></article></div></div><div className="preview-actions"><p>Clip actions</p><a href={getDownloadUrl(jobId, clip.filename)} download><Icon name="download" /> Download</a><button disabled title="Transcript text is not provided by the current API"><Icon name="copy" /> Copy transcript</button><button onClick={() => { const title = window.prompt('Rename clip', clip.title); if (title?.trim()) onRename(clip.id, title.trim()); }}>Rename</button><button className="disabled-action" disabled><Icon name="sparkle" /> Generate captions</button><button className="preview-delete" onClick={() => onDelete(clip.id)}>Remove from view</button></div></aside></div>
+    <footer className="preview-related"><div><p>Related clips</p><small>← / → to switch · Esc to close</small></div><div>{clips.map((item) => <button className={item.id === clip.id ? 'active' : ''} key={item.id} onClick={() => onSelect(item)}><img src={getStaticUrl(item.thumbnail_url)} alt="" /><span>{duration(item.duration)}</span></button>)}</div></footer>
+  </section></div>;
 }
