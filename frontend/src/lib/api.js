@@ -117,3 +117,32 @@ export function getDownloadUrl(jobId, filename) {
 export function getStaticUrl(path) {
   return `${API_BASE}${path}`;
 }
+
+/**
+ * List available caption style variations.
+ */
+export async function getCaptionStyles() {
+  const res = await fetch(`${API_BASE}/api/caption-styles`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to load caption styles');
+  }
+  return res.json();
+}
+
+/**
+ * Burn captions into a clip with the requested style (on-demand, no AI).
+ */
+export async function generateCaptions(jobId, clipId, style) {
+  const res = await fetch(
+    `${API_BASE}/api/captions/${jobId}/${clipId}?style=${encodeURIComponent(style)}`,
+    { method: 'POST' },
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to generate captions');
+  }
+
+  return res.json();
+}

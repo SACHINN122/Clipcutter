@@ -25,6 +25,7 @@ from services.pipeline_service import (
     run_pipeline,
     jobs,
 )
+from services.caption_service import generate_captioned_clip, list_styles
 
 
 router = APIRouter(prefix="/api")
@@ -117,6 +118,46 @@ async def get_clips(job_id: str):
         )
 
     return [ClipInfo(**c) for c in job["clips"]]
+
+
+@router.get("/caption-styles")
+async def caption_styles():
+    """List available caption style variations."""
+    return list_styles()
+
+
+@router.post("/captions/{job_id}/{clip_id}")
+async def create_captions(job_id: str, clip_id: int, style: str = "classic"):
+    """
+    Burn word-level captions into a clip using the requested style.
+
+    On-demand and additive: the original clip is untouched and the captioned
+    version is returned separately. No AI call is made.
+    """
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job["status"] != JobStatus.COMPLETED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is not completed yet. Current status: {job['status'].value}"
+        )
+
+    clip = next((c for c in job["clips"] if c["id"] == clip_id), None)
+    if not clip:
+        raise HTTPException(status_code=404, detail="Clip not found")
+
+    try:
+        result = generate_captioned_clip(job_id, clip_id, style)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Point the clip at the captioned file so the frontend just swaps the URL.
+    clip["filename"] = result.filename
+    clip["video_url"] = result.video_url
+
+    return ClipInfo(**clip)
 
 
 @router.get("/download/{job_id}/{filename}")

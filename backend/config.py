@@ -43,6 +43,9 @@ MAX_CLIP_DURATION = 120  # seconds
 TARGET_CLIP_MIN = 5
 TARGET_CLIP_MAX = 20
 
+# --- Caption Constraints ---
+MAX_CAPTION_WORDS = 10   # max words shown on screen at once (sliding window)
+
 # --- Upload Constraints ---
 MAX_UPLOAD_SIZE_GB = 5
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_GB * 1024 * 1024 * 1024
