@@ -5,6 +5,7 @@ Manages job state and coordinates all services.
 
 import asyncio
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 from faster_whisper import WhisperModel
 
@@ -30,6 +31,8 @@ def create_job(job_id: str, source_type: str, **kwargs) -> dict:
         "video_path": kwargs.get("video_path"),
         "youtube_url": kwargs.get("youtube_url"),
         "video_title": kwargs.get("video_title", ""),
+        "created_at": datetime.now(timezone.utc),
+        "duration": None,
         "current_step": "Waiting",
         "steps": _build_steps(source_type),
         "clips": [],
@@ -80,6 +83,10 @@ def get_processing_status(job_id: str) -> dict | None:
         "current_step": job["current_step"],
         "steps": [StepInfo(**s) for s in job["steps"]],
         "error": job["error"],
+        "video_title": job["video_title"],
+        "source_type": job["source_type"],
+        "created_at": job["created_at"],
+        "duration": job["duration"],
     }
 
 
@@ -126,6 +133,7 @@ async def run_pipeline(job_id: str, whisper_model: WhisperModel):
         _update_step(job, "Transcribing Video", "running", "Running speech-to-text...")
 
         transcript = await transcribe(audio_path, whisper_model, job_id)
+        job["duration"] = transcript.get("duration")
 
         _update_step(
             job, "Transcribing Video", "completed",

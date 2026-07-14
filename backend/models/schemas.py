@@ -3,6 +3,7 @@ Pydantic models for request/response schemas and internal data structures.
 """
 
 from enum import Enum
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -45,6 +46,10 @@ class ProcessingStatus(BaseModel):
     current_step: str
     steps: list[StepInfo]
     error: Optional[str] = None
+    video_title: str = ""
+    source_type: str = "file"
+    created_at: datetime
+    duration: Optional[float] = None
 
 
 class ClipTimestamp(BaseModel):

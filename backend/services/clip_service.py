@@ -31,28 +31,42 @@ def _generate_single_clip_sync(
     """Generate a single clip using FFmpeg (sync, runs in executor)."""
     duration = end - start
 
-    # Try stream copy first (fast, no quality loss)
+    # Always produce browser-compatible MP4 clips. Stream-copying retains the
+    # source audio codec (often Opus or an unsupported codec in downloaded
+    # videos), which can leave an otherwise valid clip silent in the browser.
+    # Explicit stream mapping also prevents FFmpeg from dropping audio when the
+    # input contains multiple streams.
     result = _run_ffmpeg_sync([
         "-ss", str(start),
         "-i", video_path,
         "-t", str(duration),
-        "-c", "copy",
-        "-avoid_negative_ts", "make_zero",
+        "-map", "0:v:0",
+        "-map", "0:a:0?",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "18",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
         "-y",
         clip_path,
     ])
 
-    # If stream copy fails, fall back to re-encoding
+    # Retry with a broadly available video encoder setting if the first encode
+    # fails. Audio remains explicitly mapped and encoded as AAC in both paths.
     if result.returncode != 0 or not Path(clip_path).exists():
         result = _run_ffmpeg_sync([
             "-ss", str(start),
             "-i", video_path,
             "-t", str(duration),
+            "-map", "0:v:0",
+            "-map", "0:a:0?",
             "-c:v", "libx264",
-            "-preset", "fast",
+            "-preset", "veryfast",
             "-crf", "18",
             "-c:a", "aac",
             "-b:a", "192k",
+            "-movflags", "+faststart",
             "-y",
             clip_path,
         ])

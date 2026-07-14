@@ -14,11 +14,17 @@ const SCREEN = {
 export default function App() {
   const [screen, setScreen] = useState(SCREEN.UPLOAD);
   const [jobId, setJobId] = useState(null);
+  const [jobDetails, setJobDetails] = useState(null);
   const [notifyWhenComplete, setNotifyWhenComplete] = useState(false);
 
   const handleProcessingStart = useCallback(async (newJobId, options = {}) => {
     setJobId(newJobId);
     setNotifyWhenComplete(Boolean(options.notifyWhenComplete));
+    setJobDetails({
+      videoName: options.videoName || 'Untitled video',
+      sourceType: options.sourceType || 'file',
+      createdAt: options.createdAt || new Date().toISOString(),
+    });
     try {
       await startProcessing(newJobId);
       setScreen(SCREEN.PROCESSING);
@@ -39,7 +45,12 @@ export default function App() {
   const handleReset = useCallback(() => {
     setScreen(SCREEN.UPLOAD);
     setJobId(null);
+    setJobDetails(null);
     setNotifyWhenComplete(false);
+  }, []);
+
+  const handleLeaveProcessing = useCallback(() => {
+    setScreen(SCREEN.UPLOAD);
   }, []);
 
   return (
@@ -50,7 +61,10 @@ export default function App() {
       {screen === SCREEN.PROCESSING && (
         <ProcessingScreen
           jobId={jobId}
+          jobDetails={jobDetails}
           notifyWhenComplete={notifyWhenComplete}
+          onNotificationChange={setNotifyWhenComplete}
+          onLeave={handleLeaveProcessing}
           onComplete={handleComplete}
           onError={handleError}
         />

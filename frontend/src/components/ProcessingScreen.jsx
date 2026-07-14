@@ -1,244 +1,122 @@
 import { useEffect, useState } from 'react';
 import { getStatus } from '../lib/api';
 import { showCompletionNotification } from '../lib/notifications';
-import StudioHeader from './StudioHeader';
 
 const POLL_INTERVAL = 2000;
 
-function StepIcon({ status }) {
-  if (status === 'completed') {
-    return (
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(74,222,128,0.16)]">
-        <svg className="h-4 w-4 text-[var(--color-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (status === 'running') {
-    return (
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(56,189,248,0.16)]">
-        <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }} />
-      </div>
-    );
-  }
-
-  if (status === 'failed') {
-    return (
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(251,113,133,0.16)]">
-        <svg className="h-4 w-4 text-[var(--color-error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[rgba(255,255,255,0.05)]">
-      <div className="h-2 w-2 rounded-full bg-[var(--color-text-muted)]" />
-    </div>
-  );
+function Icon({ type }) {
+  const paths = {
+    check: <path d="m5 12 4.2 4.2L19 6.5" />,
+    play: <path d="m9 7 7 5-7 5V7Z" />,
+    clock: <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></>,
+    video: <><rect x="3" y="6" width="12" height="12" rx="2" /><path d="m15 10 5-3v10l-5-3" /></>,
+    bell: <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
+    spark: <path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z" />,
+  };
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[type] || paths.clock}</svg>;
 }
 
-export default function ProcessingScreen({ jobId, notifyWhenComplete, onComplete, onError }) {
+function StepIcon({ status }) {
+  const type = status === 'completed' ? 'check' : status === 'running' ? 'spark' : 'clock';
+  return <span className={`processing-step-icon ${status === 'running' ? 'is-running' : ''} ${status === 'completed' ? 'is-complete' : ''}`}><Icon type={type} /></span>;
+}
+
+export default function ProcessingScreen({ jobId, jobDetails, notifyWhenComplete, onNotificationChange, onLeave, onComplete, onError }) {
   const [steps, setSteps] = useState([]);
   const [error, setError] = useState(null);
-  const [currentStep, setCurrentStep] = useState('Starting...');
+  const [currentStep, setCurrentStep] = useState('Preparing your workspace');
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!jobId) return;
     let active = true;
     let timeoutId;
-
     async function poll() {
       try {
         const data = await getStatus(jobId);
         if (!active) return;
-
         setSteps(data.steps || []);
         setCurrentStep(data.current_step || 'Working');
-
         if (data.status === 'completed') {
-          if (notifyWhenComplete) {
-            showCompletionNotification(jobId);
-          }
+          if (notifyWhenComplete) showCompletionNotification(jobId);
           onComplete();
           return;
         }
-
         if (data.status === 'failed') {
           const message = data.error || 'Processing failed';
           setError(message);
           onError?.(message);
           return;
         }
-
         timeoutId = setTimeout(poll, POLL_INTERVAL);
       } catch {
-        if (!active) return;
-        timeoutId = setTimeout(poll, POLL_INTERVAL * 2);
+        if (active) timeoutId = setTimeout(poll, POLL_INTERVAL * 2);
       }
     }
-
     poll();
-    return () => {
-      active = false;
-      clearTimeout(timeoutId);
-    };
+    return () => { active = false; clearTimeout(timeoutId); };
   }, [jobId, notifyWhenComplete, onComplete, onError]);
 
   const completedSteps = steps.filter((step) => step.status === 'completed').length;
-  const totalSteps = Math.max(steps.length, 4);
-  const progress = Math.min(100, Math.round((completedSteps / totalSteps) * 100));
+  const totalSteps = Math.max(steps.length, 1);
+  const progress = error ? 0 : Math.min(100, Math.round((completedSteps / totalSteps) * 100));
   const runningStep = steps.find((step) => step.status === 'running');
-  const stageTitle = error ? 'Processing stopped' : (runningStep?.name || currentStep || 'Working');
-  const stageMessage = error
-    ? error
-    : runningStep?.message || 'We are keeping the pipeline moving in the background.';
+  const stageTitle = error ? 'Processing stopped' : (runningStep?.name || currentStep);
+  const stageMessage = error ? error : (runningStep?.message || 'The pipeline is preparing the next task.');
+  const elapsedText = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
 
   return (
-    <div className="page-shell px-4 py-4 sm:px-6 lg:px-8">
-      <div className="bg-pattern" />
+    <div className="processing-shell">
+      <div className="processing-aura" />
+      <div className="processing-frame">
+        <header className="processing-topbar">
+          <button className="processing-back" onClick={onLeave} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg> Back</button>
+          <div className="processing-brand"><span><Icon type="spark" /></span> ClipForge</div>
+        </header>
 
-      <div className="page-frame flex min-h-screen flex-col gap-5">
-        <StudioHeader
-          eyebrow="ClipForge AI"
-          statusLabel={notifyWhenComplete ? 'Notification armed' : 'Background processing'}
-          statusValue={jobId ? `Job ${jobId.slice(0, 6).toUpperCase()}` : 'Waiting'}
-        />
+        <main>
+          <div className="processing-intro">
+            <p>AI video processing</p>
+            <h1>Processing your video</h1>
+            <div>Our AI is analyzing your upload and finding the moments that deserve to be shared.</div>
+          </div>
 
-        <main className="grid flex-1 gap-6 lg:grid-cols-[0.88fr_1.12fr] lg:items-start">
-          <section className="surface-card p-6 sm:p-7 lg:p-8 fade-in-up">
-            <p className="section-label">Processing your video</p>
-            <h1 className="section-title mt-3 text-3xl sm:text-4xl">
-              Finding the moments worth clipping.
-            </h1>
-            <p className="section-copy mt-4 max-w-2xl">
-              We are extracting audio, transcribing the track, asking AI to rank the best
-              moments, and exporting the clips. You can leave this tab open while it runs.
-            </p>
-
-            <div className="mt-6 rounded-[1.5rem] border border-[var(--color-border)] bg-[rgba(255,255,255,0.03)] p-5">
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-                <div
-                  className="relative h-36 w-36 shrink-0"
-                  style={{
-                    background: `conic-gradient(var(--color-accent) 0 ${progress}%, rgba(255,255,255,0.08) ${progress}% 100%)`,
-                  }}
-                >
-                  <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-[rgba(7,12,22,0.96)] text-center">
-                    <p className="font-display text-3xl font-bold">{progress}%</p>
-                    <p className="mt-1 text-[0.7rem] uppercase tracking-[0.24em] text-[var(--color-text-muted)]">
-                      Done
-                    </p>
-                  </div>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="section-label">Current stage</p>
-                  <p className="font-display mt-2 text-2xl font-bold">{stageTitle}</p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-                    {stageMessage}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="control-chip">{completedSteps}/{totalSteps} steps complete</span>
-                    <span className="control-chip">
-                      {notifyWhenComplete ? 'Desktop alert enabled' : 'No alert selected'}
-                    </span>
-                  </div>
-                </div>
+          <div className="processing-grid">
+            <section className="processing-hero">
+              <div className="processing-hero-top"><span className="processing-live"><i /> Live processing</span><span>{completedSteps} of {totalSteps} steps</span></div>
+              <div className="processing-focus">
+                <div className="processing-ring" style={{ '--progress': `${progress * 3.6}deg` }}><div><strong>{progress}%</strong><small>complete</small></div></div>
+                <div className="processing-stage"><p>Current stage</p><h2>{stageTitle}</h2><span>{stageMessage}</span></div>
               </div>
+              <div className="processing-progress"><div><span>Overall progress</span><b>{progress}%</b></div><div className="processing-track"><i style={{ width: `${progress}%` }} /></div></div>
+              <div className="processing-times"><div><Icon type="clock" /><span>Elapsed time<strong>{elapsedText}</strong></span></div><div><Icon type="clock" /><span>Estimated remaining<strong>Calculating</strong></span></div></div>
+            </section>
+
+            <aside className="processing-details">
+              <div className="processing-details-heading"><h2>Job details</h2><span className={error ? 'failed' : 'active'}>{error ? 'Failed' : 'Processing'}</span></div>
+              <dl>
+                <div><dt>Video name</dt><dd title={jobDetails?.videoName}>{jobDetails?.videoName || 'Not available'}</dd></div>
+                <div><dt>Duration</dt><dd>Not available</dd></div>
+                <div><dt>Job ID</dt><dd className="job-id">{jobId || 'Not available'}</dd></div>
+              </dl>
+              <label className="processing-toggle"><span><Icon type="bell" /> Notify me when it’s ready</span><input type="checkbox" checked={notifyWhenComplete} onChange={(event) => onNotificationChange?.(event.target.checked)} /><i /></label>
+            </aside>
+          </div>
+
+          <section className="processing-timeline-section">
+            <div><p>Pipeline</p><h2>What your AI is working through</h2></div>
+            <div className="processing-timeline">
+              {steps.length ? steps.map((step, index) => <article className={`processing-timeline-step ${step.status}`} key={`${step.name}-${index}`}><StepIcon status={step.status} /><div><h3>{step.name}</h3><p>{step.message || (step.status === 'pending' ? 'Waiting for the previous step to finish.' : 'Processing this part of your video.')}</p></div><em>{step.status}</em></article>) : <article className="processing-timeline-step running"><StepIcon status="running" /><div><h3>Preparing processing pipeline</h3><p>Connecting your video to the AI workflow.</p></div><em>running</em></article>}
             </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="stat-card">
-                <p className="stat-label">Job ID</p>
-                <p className="stat-value">{jobId ? jobId.slice(0, 8).toUpperCase() : 'Pending'}</p>
-                <p className="stat-note">This identifier is used to fetch the clips when the job completes.</p>
-              </div>
-              <div className="stat-card">
-                <p className="stat-label">Tip</p>
-                <p className="stat-value">Keep this tab open</p>
-                <p className="stat-note">If notifications are enabled, you will get a browser alert when the clips are ready.</p>
-              </div>
-            </div>
+            {error && <p className="processing-error">{error}</p>}
           </section>
-
-          <section className="surface-card p-5 sm:p-6 lg:p-7 fade-in-up fade-in-up-delay-1">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="section-label">Live breakdown</p>
-                <h2 className="section-title mt-2 text-2xl sm:text-3xl">
-                  Pipeline steps
-                </h2>
-              </div>
-              <span className="control-chip">
-                {steps.length ? `${steps.length} tracked steps` : 'Tracking job status'}
-              </span>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              {steps.length ? steps.map((step, i) => (
-                <div key={step.name} className="workflow-item items-start">
-                  <div className="mt-0.5">
-                    <StepIcon status={step.status} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className={`font-medium text-sm ${
-                        step.status === 'completed' ? 'text-[var(--color-text-primary)]'
-                          : step.status === 'running' ? 'text-[var(--color-accent-hover)]'
-                          : step.status === 'failed' ? 'text-[var(--color-error)]'
-                            : 'text-[var(--color-text-muted)]'
-                      }`}>
-                        {step.name}
-                      </p>
-                      <span className="text-[0.7rem] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-                        {step.status}
-                      </span>
-                    </div>
-
-                    {step.message && (
-                      <p className="mt-1 text-sm leading-6 text-[var(--color-text-secondary)]">
-                        {step.message}
-                      </p>
-                    )}
-
-                    {i < steps.length - 1 && (
-                      <div className={`mt-3 h-px w-full ${step.status === 'completed' ? 'bg-[rgba(74,222,128,0.2)]' : 'bg-[var(--color-border)]'}`} />
-                    )}
-                  </div>
-                </div>
-              )) : (
-                <div className="rounded-[1.25rem] border border-[var(--color-border)] bg-[rgba(255,255,255,0.03)] p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }} />
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      Preparing the processing timeline...
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {error && (
-              <div className="mt-5 rounded-[1rem] border border-[rgba(251,113,133,0.25)] bg-[rgba(251,113,133,0.08)] p-4 text-sm text-[var(--color-error)]">
-                <p className="font-semibold mb-1">Processing Failed</p>
-                <p>{error}</p>
-              </div>
-            )}
-
-            {!error && (
-              <div className="mt-6 rounded-[1rem] border border-[var(--color-border)] bg-[rgba(255,255,255,0.03)] p-4">
-                <p className="text-sm text-[var(--color-text-secondary)]">
-                  {notifyWhenComplete
-                    ? 'Desktop notification will pop up once the job is complete.'
-                    : 'You can keep watching the status here, or turn on notifications next time.'}
-                </p>
-              </div>
-            )}
-          </section>
+          <div className="processing-banner"><span><Icon type="spark" /></span><div><strong>Hang tight.</strong><p>AI is finding your best moments.</p></div></div>
         </main>
       </div>
     </div>

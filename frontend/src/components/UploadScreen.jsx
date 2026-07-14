@@ -63,7 +63,12 @@ export default function UploadScreen({ onProcessingStart }) {
       const response = activeTab === 'file'
         ? await uploadVideo(file, setUploadProgress)
         : await submitYouTubeUrl(youtubeUrl.trim());
-      onProcessingStart(response.job_id, { notifyWhenComplete: notificationsEnabled });
+      onProcessingStart(response.job_id, {
+        notifyWhenComplete: notificationsEnabled,
+        videoName: response.filename || (activeTab === 'youtube' ? 'YouTube video' : file?.name),
+        sourceType: activeTab,
+        createdAt: new Date().toISOString(),
+      });
     } catch (err) { setError(err.message || 'Unable to create this job. Please try again.'); setUploading(false); }
   };
 
