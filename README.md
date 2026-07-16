@@ -46,8 +46,8 @@ the clips for you.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/SACHINN122/ClipcutterAvailable.git
-cd ClipcutterAvailable
+git clone https://github.com/SACHINN122/clipo.git
+cd clipo
 ```
 
 ### 2. Set up the backend
