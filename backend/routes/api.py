@@ -1,5 +1,5 @@
 """
-API Routes for ClipForge AI.
+API Routes for Clipo AI.
 """
 
 import asyncio

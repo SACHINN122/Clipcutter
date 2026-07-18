@@ -15,6 +15,7 @@ the clips for you.
 - **Local transcription** — speech-to-text with Faster Whisper, including word-level timestamps.
 - **AI moment detection** — Gemini finds the strongest hooks, stories, insights, and emotional beats.
 - **Auto clip generation** — FFmpeg cuts the selected moments and exports them as downloadable clips.
+- **Advanced Caption Studio** — Interactive, draggable phone preview with stylish presets (Bold, Karaoke, Neon, Minimal) and on-demand subtitle burning.
 - **Job dashboard** — a responsive React UI to create, track, preview, and download jobs.
 
 ---
@@ -83,7 +84,7 @@ python main.py
 ```
 
 Open the app at **http://127.0.0.1:5173**.
-The API runs at **http://127.0.0.1:8000** and its docs are at **http://127.0.0.1:8000/docs**.
+The API runs at **http://127.0.0.1:8001** and its docs are at **http://127.0.0.1:8001/docs**.
 
 ---
 
@@ -107,6 +108,8 @@ The API runs at **http://127.0.0.1:8000** and its docs are at **http://127.0.0.1
 | `POST` | `/api/generate/{job_id}` | Start the processing pipeline |
 | `GET` | `/api/status/{job_id}` | Read live job and step status |
 | `GET` | `/api/clips/{job_id}` | List completed clips |
+| `GET` | `/api/caption-styles` | List available subtitle presets |
+| `POST` | `/api/captions/{job_id}/{clip_id}` | Burn word-level captions into a clip |
 | `GET` | `/api/download/{job_id}/{filename}` | Download an exported clip |
 
 ---
@@ -124,6 +127,7 @@ backend/
 │   ├── transcription_service.py  # Whisper-based STT
 │   ├── ai_service.py       # Gemini AI analysis
 │   ├── clip_service.py     # FFmpeg clip generation
+│   ├── caption_service.py  # FFmpeg + libass subtitle burning
 │   └── pipeline_service.py # Job orchestration
 ├── models/
 │   └── schemas.py          # Pydantic request/response models
@@ -133,10 +137,11 @@ backend/
 frontend/
 ├── src/
 │   ├── components/
-│   │   ├── Upload.jsx      # Video upload UI
-│   │   ├── Processing.jsx  # Job tracking dashboard
-│   │   ├── Results.jsx     # Generated clips view
-│   │   └── Player.jsx      # Video player
+│   │   ├── UploadScreen.jsx      # Video upload & tracker UI
+│   │   ├── ResultsScreen.jsx     # Generated clips view
+│   │   ├── VideoPlayer.jsx       # Video player & actions
+│   │   ├── CaptionStudio.jsx     # Advanced Caption Studio modal
+│   │   └── ClipoMark.jsx         # Custom brand watermarking
 │   └── main.jsx            # React root component
 ├── index.html              # HTML entry point
 └── vite.config.js          # Vite configuration

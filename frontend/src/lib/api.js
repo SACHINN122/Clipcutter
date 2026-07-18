@@ -2,7 +2,7 @@
  * API client for Clipo AI backend.
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'http://localhost:8001';
 
 /**
  * Upload a video file with progress tracking.

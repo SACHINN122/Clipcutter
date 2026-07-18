@@ -1,5 +1,5 @@
 """
-ClipForge AI — FastAPI Backend Entry Point.
+Clipo AI — FastAPI Backend Entry Point.
 """
 
 import os
@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ClipForge AI",
+    title="Clipo AI",
     description="Convert long-form videos into engaging short-form clips using AI.",
     version="1.0.0",
     lifespan=lifespan,
@@ -84,9 +84,9 @@ app.include_router(api_router)
 
 @app.get("/")
 async def root():
-    return {"message": "ClipForge AI Backend is running"}
+    return {"message": "Clipo AI Backend is running"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

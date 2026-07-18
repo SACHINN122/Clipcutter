@@ -1,5 +1,5 @@
 """
-Centralized configuration for ClipForge AI backend.
+Centralized configuration for Clipo AI backend.
 Reads settings from environment variables / .env file.
 """
 
