@@ -103,7 +103,7 @@ export default function UploadScreen({ onProcessingStart }) {
             <div className="pipeline-foot"><span className="live-dot" />Local GPU is ready</div>
           </aside>
         </div>
-        <section className="recent-section"><div className="section-heading"><div><div className="eyebrow">Library</div><h2>Recent jobs</h2></div><button className="ghost-button">View all <Icon name="arrow" /></button></div><div className="empty-jobs"><div className="empty-art"><i /><i /><i /><b><Icon name="spark" /></b></div><h3>Your creative queue is clear.</h3><p>Your recent projects will appear here, ready to preview, revisit and export.</p></div></section>
+        <section className="recent-section"><div className="section-heading"><div><div className="eyebrow">Library</div><h2>Recent jobs</h2></div><button className="ghost-button">View all <Icon name="arrow" /></button></div><div className="empty-jobs"><div className="empty-art"><i /><i /><i /><b><Icon name="spark" /></b></div><h3>Your Clipo creative queue is clear.</h3><p>Your recent projects will appear here, ready to preview, revisit and export.</p></div></section>
         <section className="benefits"><div><div className="eyebrow">Made for creators</div><h2>Everything between<br />idea and publish.</h2></div><div className="benefit-list">{BENEFITS.map(([number, title, description]) => <div key={number}><span>{number}</span><h3>{title}</h3><p>{description}</p></div>)}</div></section>
       </main>
     </div>

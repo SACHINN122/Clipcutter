@@ -1,5 +1,5 @@
 /**
- * API client for ClipForge AI backend.
+ * API client for Clipo AI backend.
  */
 
 const API_BASE = 'http://localhost:8000';

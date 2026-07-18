@@ -23,9 +23,9 @@ export function showCompletionNotification(jobId) {
     return false;
   }
 
-  new Notification('ClipForge AI', {
-    body: 'Your clip generation is complete. Open the results to review and download them.',
-    tag: `clipforge-complete-${jobId}`,
+  new Notification('Clipo AI', {
+    body: 'Your Clipo clip generation is complete. Open the results to review and download them.',
+    tag: `clipo-complete-${jobId}`,
   });
 
   return true;

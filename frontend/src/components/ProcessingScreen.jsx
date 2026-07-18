@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getStatus } from '../lib/api';
 import { showCompletionNotification } from '../lib/notifications';
+import ClipoMark from './ClipoMark';
 
 const POLL_INTERVAL = 2000;
 
@@ -77,7 +78,7 @@ export default function ProcessingScreen({ jobId, jobDetails, notifyWhenComplete
       <div className="processing-frame">
         <header className="processing-topbar">
           <button className="processing-back" onClick={onLeave} type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg> Back</button>
-          <div className="processing-brand"><span><Icon type="spark" /></span> ClipForge</div>
+          <div className="processing-brand"><span><ClipoMark /></span> Clipo</div>
         </header>
 
         <main>
