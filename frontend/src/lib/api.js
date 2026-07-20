@@ -77,6 +77,20 @@ export async function startProcessing(jobId) {
 }
 
 /**
+ * Get all processing jobs.
+ */
+export async function getAllJobs() {
+  const res = await fetch(`${API_BASE}/api/jobs`);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Failed to get jobs');
+  }
+
+  return res.json();
+}
+
+/**
  * Get current processing status.
  */
 export async function getStatus(jobId) {

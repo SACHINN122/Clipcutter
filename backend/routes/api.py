@@ -104,6 +104,18 @@ async def get_status(job_id: str):
     return status
 
 
+@router.get("/jobs", response_model=list[ProcessingStatus])
+async def get_jobs():
+    """Get all processing jobs."""
+    result = []
+    for job_id in jobs:
+        status = get_processing_status(job_id)
+        if status:
+            result.append(status)
+    result.sort(key=lambda x: x["created_at"], reverse=True)
+    return result
+
+
 @router.get("/clips/{job_id}", response_model=list[ClipInfo])
 async def get_clips(job_id: str):
     """Get all generated clips for a job."""
