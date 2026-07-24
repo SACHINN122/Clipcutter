@@ -14,12 +14,17 @@ from models.schemas import ClipTimestamp, ClipInfo
 
 def _run_ffmpeg_sync(args: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
     """Run an FFmpeg command synchronously (called via executor)."""
-    return subprocess.run(
-        ["ffmpeg"] + args,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    try:
+        return subprocess.run(
+            ["ffmpeg"] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "FFmpeg executable was not found. Install FFmpeg and add its bin directory to PATH."
+        ) from exc
 
 
 def _generate_single_clip_sync(

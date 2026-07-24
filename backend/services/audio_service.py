@@ -11,21 +11,26 @@ from pathlib import Path
 
 def _extract_audio_sync(video_path: str, output_path: str) -> None:
     """Run FFmpeg audio extraction synchronously (called via executor)."""
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-i", video_path,
-            "-vn",              # No video
-            "-ar", "16000",     # 16kHz sample rate (Whisper optimal)
-            "-ac", "1",         # Mono
-            "-f", "wav",        # WAV format
-            "-y",               # Overwrite output
-            output_path,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=300,  # 5 minute timeout
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-i", video_path,
+                "-vn",              # No video
+                "-ar", "16000",     # 16kHz sample rate (Whisper optimal)
+                "-ac", "1",         # Mono
+                "-f", "wav",        # WAV format
+                "-y",               # Overwrite output
+                output_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "FFmpeg executable was not found. Install FFmpeg and add its bin directory to PATH."
+        ) from exc
     if result.returncode != 0:
         last_line = result.stderr.strip().split("\n")[-1]
         raise RuntimeError(f"FFmpeg audio extraction failed: {last_line}")

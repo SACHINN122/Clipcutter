@@ -8,6 +8,7 @@ import asyncio
 import json
 import subprocess
 import functools
+import sys
 from pathlib import Path
 from fastapi import HTTPException
 
@@ -54,13 +55,22 @@ def _yt_dlp_strategies() -> list[list[str]]:
     ]
 
 
+def _yt_dlp_command(*args: str) -> list[str]:
+    """Run yt-dlp from the same Python environment as the backend.
+
+    Invoking the module avoids relying on a globally installed ``yt-dlp``
+    executable, which is especially important on Windows virtual environments.
+    """
+    return [sys.executable, "-m", "yt_dlp", *args]
+
+
 def _get_video_info_sync(url: str) -> dict:
     """Fetch video metadata without downloading (sync, runs in executor)."""
     last_err = "No yt-dlp strategies succeeded"
     for extra in _yt_dlp_strategies():
         try:
             result = subprocess.run(
-                ["yt-dlp", *extra, "--dump-json", "--no-download", "--no-warnings", url],
+                _yt_dlp_command(*extra, "--dump-json", "--no-download", "--no-warnings", url),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -79,8 +89,7 @@ def _download_video_sync(url: str, output_path: str) -> None:
     for extra in _yt_dlp_strategies():
         try:
             result = subprocess.run(
-                [
-                    "yt-dlp",
+                _yt_dlp_command(
                     *extra,
                     "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                     "--merge-output-format", "mp4",
@@ -88,7 +97,7 @@ def _download_video_sync(url: str, output_path: str) -> None:
                     "--no-playlist",
                     "--no-warnings",
                     url,
-                ],
+                ),
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minute timeout for large videos

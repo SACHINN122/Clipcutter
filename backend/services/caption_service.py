@@ -155,23 +155,28 @@ def _burn_subtitles_sync(clip_dir: Path, source_name: str, ass_name: str, output
     drive-letter paths, so we run from inside the clip directory and pass
     bare filenames. The audio is copied (already AAC) so only video re-encodes.
     """
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-i", source_name,
-            "-vf", f"subtitles={ass_name}",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "18",
-            "-c:a", "copy",
-            "-movflags", "+faststart",
-            "-y", output_name,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=300,
-        cwd=str(clip_dir),
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-i", source_name,
+                "-vf", f"subtitles={ass_name}",
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "18",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                "-y", output_name,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(clip_dir),
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "FFmpeg executable was not found. Install FFmpeg and add its bin directory to PATH."
+        ) from exc
     if result.returncode != 0 or not (clip_dir / output_name).exists():
         last_line = result.stderr.strip().splitlines()[-1] if result.stderr else "unknown error"
         raise RuntimeError(f"Caption burn failed: {last_line}")
