@@ -125,6 +125,11 @@ export function getDownloadUrl(jobId, filename) {
   return `${API_BASE}/api/download/${jobId}/${filename}`;
 }
 
+/** Get the URL for a ZIP archive containing every clip in a completed job. */
+export function getDownloadAllUrl(jobId) {
+  return `${API_BASE}/api/download-all/${jobId}`;
+}
+
 /**
  * Get the full URL for a static asset (thumbnail, video preview).
  */

@@ -3,9 +3,12 @@ API Routes for Clipo AI.
 """
 
 import asyncio
+import tempfile
+import zipfile
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from config import CLIP_DIR
 from models.schemas import (
@@ -190,4 +193,43 @@ async def download_clip(job_id: str, filename: str):
         path=str(clip_path),
         filename=filename,
         media_type="video/mp4",
+    )
+
+
+@router.get("/download-all/{job_id}")
+async def download_all_clips(job_id: str):
+    """Create a ZIP archive containing every generated clip for a job."""
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != JobStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Clips are not ready to download yet")
+
+    job_clip_dir = (CLIP_DIR / job_id).resolve()
+    clip_paths = []
+    for clip in job["clips"]:
+        clip_path = (job_clip_dir / clip["filename"]).resolve()
+        if clip_path.parent != job_clip_dir or not clip_path.is_file():
+            raise HTTPException(status_code=404, detail=f"Clip not found: {clip['filename']}")
+        clip_paths.append(clip_path)
+
+    if not clip_paths:
+        raise HTTPException(status_code=404, detail="No clips available to download")
+
+    archive = tempfile.NamedTemporaryFile(prefix=f"clipo-{job_id}-", suffix=".zip", delete=False)
+    archive_path = Path(archive.name)
+    archive.close()
+    try:
+        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+            for clip_path in clip_paths:
+                zip_file.write(clip_path, arcname=clip_path.name)
+    except Exception:
+        archive_path.unlink(missing_ok=True)
+        raise
+
+    return FileResponse(
+        path=str(archive_path),
+        filename=f"clipo-clips-{job_id}.zip",
+        media_type="application/zip",
+        background=BackgroundTask(archive_path.unlink, missing_ok=True),
     )

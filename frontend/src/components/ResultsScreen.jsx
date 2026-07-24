@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getClips, getDownloadUrl, getStaticUrl, generateCaptions } from '../lib/api';
+import { getClips, getDownloadAllUrl, getDownloadUrl, getStaticUrl, generateCaptions } from '../lib/api';
 import VideoPlayer from './VideoPlayer';
 import CaptionStudio from './CaptionStudio';
 
@@ -67,7 +67,14 @@ export default function ResultsScreen({ jobId, onReset }) {
     }
   };
 
-  const downloadAll = () => clips.forEach((clip, index) => setTimeout(() => { const link = document.createElement('a'); link.href = getDownloadUrl(jobId, clip.filename); link.download = clip.filename; document.body.appendChild(link); link.click(); link.remove(); }, index * 200));
+  const downloadAll = () => {
+    const link = document.createElement('a');
+    link.href = getDownloadAllUrl(jobId);
+    link.download = `clipo-clips-${jobId}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
 
   if (loading) return <div className="results-shell results-centered"><div className="spinner spinner-lg" /><p>Loading your Clipo clips</p></div>;
   if (error) return <div className="results-shell results-centered"><p className="results-kicker">Something went wrong</p><h1>Could not load your Clipo clips</h1><p>{error}</p><button className="results-primary" onClick={onReset}>Try again</button></div>;
